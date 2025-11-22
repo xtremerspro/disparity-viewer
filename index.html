@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stereo Vision & Depth Perception Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+            cursor: crosshair;
+        }
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 50;
+        }
+        .has-tooltip:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .eye-view {
+            transition: all 0.1s;
+        }
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px; 
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 text-white p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-content-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold">Stereo Vision Visualizer</h1>
+                <p class="text-slate-400 text-sm">How two eyes calculate distance using math</p>
+            </div>
+            <div class="mt-2 md:mt-0 text-xs bg-slate-700 px-3 py-1 rounded text-slate-300">
+                Interactive Mode
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow p-4 md:p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Column: Visualizations -->
+        <div class="lg:col-span-8 space-y-6">
+            
+            <!-- Top Down View -->
+            <div class="bg-white p-4 rounded-xl shadow-md relative">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="font-bold text-lg text-slate-700 flex items-center gap-2">
+                        1. Top-Down Geometry
+                        <span class="has-tooltip cursor-help text-blue-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <div class="tooltip absolute left-0 top-8 bg-slate-800 text-white text-xs p-3 rounded shadow-xl w-64 text-left leading-relaxed">
+                                This is a bird's-eye view. The two blue semi-circles are the eyes (cameras). The orange dot is the object. <br><br><strong>Instructions:</strong> Click and drag the orange dot to move the object!
+                            </div>
+                        </span>
+                    </h2>
+                    <span class="text-xs text-slate-500">Drag the Orange Dot</span>
+                </div>
+                <canvas id="geometryCanvas" width="800" height="400" class="w-full h-auto border border-slate-200"></canvas>
+            </div>
+
+            <!-- What the Eyes See (Retinal Views) -->
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Left Eye -->
+                <div class="bg-white p-4 rounded-xl shadow-md text-center relative">
+                    <h3 class="text-sm font-bold text-red-500 mb-2">Left Eye View</h3>
+                    <div class="relative h-32 bg-slate-900 rounded-lg overflow-hidden border-2 border-red-200 group">
+                        <!-- Background Grid (Fixed) -->
+                        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 20px 20px;"></div>
+                        <!-- Object -->
+                        <div id="viewLeft" class="absolute top-1/2 left-1/2 w-6 h-6 bg-orange-500 rounded-full transform -translate-y-1/2 -translate-x-1/2 shadow-[0_0_10px_rgba(249,115,22,0.8)] transition-transform duration-75"></div>
+                        
+                        <div class="absolute bottom-1 left-1 text-xs text-white opacity-50 font-mono" id="valLeft">0px</div>
+                    </div>
+                </div>
+
+                <!-- Right Eye -->
+                <div class="bg-white p-4 rounded-xl shadow-md text-center relative">
+                    <h3 class="text-sm font-bold text-blue-500 mb-2">Right Eye View</h3>
+                    <div class="relative h-32 bg-slate-900 rounded-lg overflow-hidden border-2 border-blue-200">
+                         <!-- Background Grid (Fixed) -->
+                         <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 20px 20px;"></div>
+                         <!-- Object -->
+                        <div id="viewRight" class="absolute top-1/2 left-1/2 w-6 h-6 bg-orange-500 rounded-full transform -translate-y-1/2 -translate-x-1/2 shadow-[0_0_10px_rgba(249,115,22,0.8)] transition-transform duration-75"></div>
+                        <div class="absolute bottom-1 right-1 text-xs text-white opacity-50 font-mono" id="valRight">0px</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Combined Overlay -->
+             <div class="bg-white p-4 rounded-xl shadow-md">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-slate-700">The Concept of Disparity</h3>
+                    <span class="has-tooltip cursor-help text-blue-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <div class="tooltip absolute right-0 bottom-8 bg-slate-800 text-white text-xs p-3 rounded shadow-xl w-64 text-left leading-relaxed">
+                            <strong>Disparity</strong> is the difference in horizontal position of the object between the left and right image. <br><br>Close your left eye, then your right. Notice how close objects "jump" more than far objects? That jump is disparity.
+                        </div>
+                    </span>
+                </div>
+                <div class="relative h-24 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
+                    <!-- Ghost Left -->
+                    <div id="ghostLeft" class="absolute w-6 h-6 bg-red-500 rounded-full opacity-40 blur-sm"></div>
+                    <!-- Ghost Right -->
+                    <div id="ghostRight" class="absolute w-6 h-6 bg-blue-500 rounded-full opacity-40 blur-sm"></div>
+                    <!-- Arrow -->
+                    <div id="disparityArrow" class="absolute h-1 bg-slate-800 top-1/2 mt-4 flex items-center justify-center transition-all duration-75">
+                        <span class="text-[10px] font-bold -mt-4 whitespace-nowrap">Disparity (d)</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Controls & Math -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- Controls -->
+            <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-blue-500">
+                <h2 class="font-bold text-lg text-slate-800 mb-4">Controls</h2>
+                
+                <div class="mb-6">
+                    <label class="flex justify-between text-sm font-semibold text-slate-600 mb-2">
+                        Baseline (Distance between eyes)
+                        <span class="text-blue-600" id="baselineVal">60 mm</span>
+                    </label>
+                    <input type="range" id="baselineSlider" min="20" max="200" value="60" class="w-full">
+                    <p class="text-xs text-slate-400 mt-1">Wider baseline = Better depth perception at range.</p>
+                </div>
+
+                <div class="mb-6">
+                    <label class="flex justify-between text-sm font-semibold text-slate-600 mb-2">
+                        Focal Length (Zoom)
+                        <span class="text-blue-600" id="focalVal">500</span>
+                    </label>
+                    <input type="range" id="focalSlider" min="200" max="800" value="500" class="w-full">
+                    <p class="text-xs text-slate-400 mt-1">How much the lens zooms in.</p>
+                </div>
+
+                <div class="p-3 bg-orange-50 rounded border border-orange-100 text-sm text-orange-800">
+                    <strong>Tip:</strong> Drag the orange ball in the diagram to change distance (Z)!
+                </div>
+            </div>
+
+            <!-- The Math -->
+            <div class="bg-slate-800 text-white p-6 rounded-xl shadow-md">
+                <h2 class="font-bold text-lg mb-4 flex items-center gap-2">
+                    Calculating Depth (Z)
+                    <span class="has-tooltip cursor-help text-blue-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        <div class="tooltip absolute right-0 top-10 bg-white text-slate-800 text-xs p-3 rounded shadow-xl w-64 text-left leading-relaxed border border-slate-300">
+                            This formula is called <strong>Triangulation</strong>. <br><br>
+                            Computers (and brains) know the Baseline ($b$) and Focal Length ($f$). They measure the Disparity ($d$) from the images. <br><br>
+                            Since $d$ is in the denominator, as disparity gets smaller (close to 0), distance goes to infinity.
+                        </div>
+                    </span>
+                </h2>
+
+                <div class="text-center mb-6">
+                    <div class="text-2xl font-serif italic mb-2">
+                        Z = <span class="inline-block text-center align-middle">
+                            <div class="border-b border-white mb-1">f &cdot; b</div>
+                            <div>d</div>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="space-y-3 font-mono text-sm">
+                    <div class="flex justify-between border-b border-slate-600 pb-1">
+                        <span class="text-slate-400">Focal Length (f):</span>
+                        <span id="mathF">500</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-600 pb-1">
+                        <span class="text-slate-400">Baseline (b):</span>
+                        <span id="mathB">60</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-600 pb-1">
+                        <span class="text-slate-400">Disparity (d):</span>
+                        <span class="text-yellow-400" id="mathD">0</span>
+                    </div>
+                    <div class="flex justify-between pt-2 text-lg font-bold text-green-400">
+                        <span>Distance (Z):</span>
+                        <span id="mathZ">0 units</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real World App -->
+            <div class="bg-white p-4 rounded-xl shadow-md text-sm">
+                <h3 class="font-bold text-slate-700 mb-2">Real World Applications</h3>
+                <ul class="list-disc pl-4 space-y-1 text-slate-600">
+                    <li><strong>Self-Driving Cars:</strong> Use stereo cameras to detect how far away pedestrians are.</li>
+                    <li><strong>VR Headsets:</strong> Use this math in reverse to trick your brain into seeing depth.</li>
+                    <li><strong>Robotics:</strong> Helps robot arms pick up objects.</li>
+                </ul>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Configuration & State
+        const canvas = document.getElementById('geometryCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Dimensions logic
+        let width = canvas.width;
+        let height = canvas.height;
+        const centerX = width / 2;
+        const bottomY = height - 50; // Camera plane position
+
+        // Simulation State
+        let state = {
+            objX: 0,      // Object X relative to center
+            objZ: 300,    // Object Distance from camera plane
+            baseline: 60, // Distance between eyes
+            focal: 500    // Focal length for projection
+        };
+
+        // Dragging logic
+        let isDragging = false;
+
+        // DOM Elements
+        const baselineSlider = document.getElementById('baselineSlider');
+        const focalSlider = document.getElementById('focalSlider');
+        const viewLeft = document.getElementById('viewLeft');
+        const viewRight = document.getElementById('viewRight');
+        const ghostLeft = document.getElementById('ghostLeft');
+        const ghostRight = document.getElementById('ghostRight');
+        const disparityArrow = document.getElementById('disparityArrow');
+        
+        // Text Elements
+        const baselineVal = document.getElementById('baselineVal');
+        const focalVal = document.getElementById('focalVal');
+        const mathF = document.getElementById('mathF');
+        const mathB = document.getElementById('mathB');
+        const mathD = document.getElementById('mathD');
+        const mathZ = document.getElementById('mathZ');
+        const valLeft = document.getElementById('valLeft');
+        const valRight = document.getElementById('valRight');
+
+        // Initialization
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Controls
+            baselineSlider.addEventListener('input', (e) => {
+                state.baseline = parseInt(e.target.value);
+                update();
+            });
+            focalSlider.addEventListener('input', (e) => {
+                state.focal = parseInt(e.target.value);
+                update();
+            });
+
+            // Canvas Interaction
+            canvas.addEventListener('mousedown', handleStart);
+            canvas.addEventListener('touchstart', handleStart, {passive: false});
+            
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('touchmove', handleMove, {passive: false});
+            
+            window.addEventListener('mouseup', handleEnd);
+            window.addEventListener('touchend', handleEnd);
+
+            update();
+        }
+
+        function resizeCanvas() {
+            // Responsive scaling for high DPI
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * 2; // Retina support
+            canvas.height = rect.height * 2;
+            ctx.scale(2, 2);
+            width = rect.width;
+            height = rect.height;
+            update();
+        }
+
+        // Coordinates Helper: Transform world coords to canvas coords
+        // World: (0,0) is bottom center. +Y is Up (away from camera). +X is Right.
+        function toCanvas(x, z) {
+            return {
+                x: (width / 2) + x,
+                y: (height - 50) - z // 50px padding from bottom
+            };
+        }
+
+        function fromCanvas(screenX, screenY) {
+            const rect = canvas.getBoundingClientRect();
+            // Adjust for canvas scaling
+            const scaleX = canvas.width / rect.width / 2; // The /2 is because of the retina scaling context
+            
+            // Actually, simple method since we control CSS width
+            return {
+                x: screenX - (width / 2),
+                z: (height - 50) - screenY
+            };
+        }
+
+        function handleStart(e) {
+            const pos = getEventPos(e);
+            const worldPos = fromCanvas(pos.x, pos.y);
+            
+            // Check distance to object
+            const dist = Math.sqrt(Math.pow(worldPos.x - state.objX, 2) + Math.pow(worldPos.z - state.objZ, 2));
+            
+            if (dist < 30) { // Hit radius
+                isDragging = true;
+                document.body.style.cursor = 'grabbing';
+            }
+        }
+
+        function handleMove(e) {
+            if (!isDragging) return;
+            e.preventDefault(); // Prevent scrolling on touch
+            const pos = getEventPos(e);
+            const worldPos = fromCanvas(pos.x, pos.y);
+
+            state.objX = worldPos.x;
+            // Clamp Z to keep it in front of cameras and on screen
+            state.objZ = Math.max(20, Math.min(height - 60, worldPos.z));
+            // Clamp X to keep on screen
+            state.objX = Math.max(-(width/2)+20, Math.min((width/2)-20, state.objX));
+            
+            update();
+        }
+
+        function handleEnd() {
+            isDragging = false;
+            document.body.style.cursor = 'default';
+        }
+
+        function getEventPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        // Core Logic
+        function update() {
+            drawGeometry();
+            calculateStereo();
+            updateUI();
+        }
+
+        function drawGeometry() {
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+
+            const cY = height - 50; // Camera Y line
+            const leftEyeX = -state.baseline / 2;
+            const rightEyeX = state.baseline / 2;
+            
+            const objPos = toCanvas(state.objX, state.objZ);
+            const leftEyePos = toCanvas(leftEyeX, 0);
+            const rightEyePos = toCanvas(rightEyeX, 0);
+
+            // Draw Grid/Floor
+            ctx.beginPath();
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.lineWidth = 1;
+            for(let i = 0; i < height; i+=40) {
+                ctx.moveTo(0, i); ctx.lineTo(width, i);
+            }
+            for(let i = 0; i < width; i+=40) {
+                ctx.moveTo(i, 0); ctx.lineTo(i, height);
+            }
+            ctx.stroke();
+
+            // Draw Rays
+            ctx.setLineDash([5, 5]);
+            
+            // Left Ray
+            ctx.beginPath();
+            ctx.strokeStyle = "#ef4444"; // Red
+            ctx.lineWidth = 2;
+            ctx.moveTo(leftEyePos.x, leftEyePos.y);
+            ctx.lineTo(objPos.x, objPos.y);
+            ctx.stroke();
+
+            // Right Ray
+            ctx.beginPath();
+            ctx.strokeStyle = "#3b82f6"; // Blue
+            ctx.lineWidth = 2;
+            ctx.moveTo(rightEyePos.x, rightEyePos.y);
+            ctx.lineTo(objPos.x, objPos.y);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+
+            // Draw Eyes (Cameras)
+            drawEye(leftEyePos.x, leftEyePos.y, "#ef4444");
+            drawEye(rightEyePos.x, rightEyePos.y, "#3b82f6");
+
+            // Draw Baseline connection
+            ctx.beginPath();
+            ctx.strokeStyle = "#334155";
+            ctx.lineWidth = 4;
+            ctx.moveTo(leftEyePos.x, leftEyePos.y);
+            ctx.lineTo(rightEyePos.x, rightEyePos.y);
+            ctx.stroke();
+            
+            // Label Baseline
+            ctx.fillStyle = "#334155";
+            ctx.font = "12px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("Baseline (b)", width/2, cY + 20);
+
+            // Draw Object
+            ctx.beginPath();
+            ctx.fillStyle = "#f97316"; // Orange
+            ctx.arc(objPos.x, objPos.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Label Z
+            ctx.beginPath();
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 1;
+            ctx.moveTo(objPos.x + 20, objPos.y);
+            ctx.lineTo(objPos.x + 20, cY);
+            // Arrowheads
+            ctx.moveTo(objPos.x + 15, objPos.y + 5); ctx.lineTo(objPos.x + 20, objPos.y); ctx.lineTo(objPos.x + 25, objPos.y + 5);
+            ctx.moveTo(objPos.x + 15, cY - 5); ctx.lineTo(objPos.x + 20, cY); ctx.lineTo(objPos.x + 25, cY - 5);
+            ctx.stroke();
+            
+            ctx.fillStyle = "#64748b";
+            ctx.textAlign = "left";
+            ctx.fillText(`Depth (Z) = ${Math.round(state.objZ)}`, objPos.x + 30, (objPos.y + cY)/2);
+        }
+
+        function drawEye(x, y, color) {
+            ctx.beginPath();
+            ctx.arc(x, y, 8, Math.PI, 0); // Semi circle
+            ctx.fillStyle = color;
+            ctx.fill();
+            
+            // Lens visual
+            ctx.beginPath();
+            ctx.ellipse(x, y-2, 12, 4, 0, 0, Math.PI*2);
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function calculateStereo() {
+            /* Projection Logic: x_screen = (X_world * focal_length) / Z_world
+               The camera is at X = +/- baseline/2. 
+               So relative X for left camera is: objectX - (-baseline/2)
+               Relative X for right camera is: objectX - (baseline/2)
+            */
+
+            const leftCamX = -state.baseline / 2;
+            const rightCamX = state.baseline / 2;
+
+            // Calculate relative horizontal position
+            const relX_L = state.objX - leftCamX;
+            const relX_R = state.objX - rightCamX;
+
+            // Project to image plane (Perspective projection)
+            // We scale by a factor (0.1) to fit the 'focal' value into our CSS pixel display comfortably
+            const projScale = 0.1; 
+            const projX_L = (relX_L * state.focal * projScale) / state.objZ;
+            const projX_R = (relX_R * state.focal * projScale) / state.objZ;
+
+            // Disparity = Left Image Pos - Right Image Pos
+            const disparity = projX_L - projX_R;
+
+            // Update Visuals (Eye Views)
+            // Center is 50%. Add projection (clamped slightly for UI safety)
+            viewLeft.style.left = `calc(50% + ${projX_L}px)`;
+            viewRight.style.left = `calc(50% + ${projX_R}px)`;
+
+            valLeft.textContent = `x: ${projX_L.toFixed(1)}`;
+            valRight.textContent = `x: ${projX_R.toFixed(1)}`;
+
+            // Update Ghost/Overlay Views
+            ghostLeft.style.left = `calc(50% + ${projX_L}px - 12px)`; // -12 is half width of dot
+            ghostRight.style.left = `calc(50% + ${projX_R}px - 12px)`;
+
+            // Update Arrow width
+            // Calculate center point between ghosts
+            const centerPt = (projX_L + projX_R) / 2;
+            const width = Math.abs(projX_L - projX_R);
+            disparityArrow.style.left = `calc(50% + ${centerPt}px - ${width/2}px)`;
+            disparityArrow.style.width = `${Math.max(2, width)}px`;
+
+            return { d: disparity, zl: state.objZ };
+        }
+
+        function updateUI() {
+            // Text Labels
+            baselineVal.innerText = `${state.baseline} mm`;
+            focalVal.innerText = `${state.focal} px`;
+
+            // Math Section
+            mathF.innerText = state.focal;
+            mathB.innerText = state.baseline;
+            
+            // Re-calculate disparity strictly for the formula display to ensure it matches Z perfectly
+            // Z = (f * b) / d  => d = (f * b) / Z
+            // We use the stored Z to generate the perfect D for the UI to avoid rounding jitter confusing the user
+            const perfectD = (state.focal * state.baseline * 0.1) / state.objZ; // *0.1 because of our projection scale factor above
+            
+            mathD.innerText = perfectD.toFixed(2);
+            mathZ.innerText = Math.round(state.objZ);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
